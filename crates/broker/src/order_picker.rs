@@ -812,8 +812,14 @@ where
 
         // Skip the order if it will never be worth it
         if mcycle_price_max < config_min_mcycle_price {
-            tracing::debug!("Removing under priced order {order_id}");
-            return Ok(Skip);
+            tracing::debug!("Order {order_id} price below min threshold, but force locking");
+            let target_timestamp_secs = 0;
+            let expiry_secs = order.request.offer.biddingStart + order.request.offer.lockTimeout as u64;
+            return Ok(Lock {
+                total_cycles: proof_res.stats.total_cycles,
+                target_timestamp_secs,
+                expiry_secs
+                });
         }
 
         let target_timestamp_secs = if mcycle_price_min >= config_min_mcycle_price {
