@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // =================================================================================================
-// || OPTIMIZATION NOTE (Final Fix) ||
+// || OPTIMIZATION NOTE (Division by Zero Fix) ||
 // =================================================================================================
 // This file has been optimized to reduce order-picking latency. Key changes include:
 //
@@ -23,8 +23,8 @@
 // 2.  **Parallelized Checks**: `tokio::join!` is used to run independent database checks
 //     concurrently, shaving off milliseconds from the decision time.
 //
-// 3.  **Dependency & Signature Correction**: Corrected all method signatures and removed
-//     unused logic (`OrderStateChange`) to resolve compilation errors.
+// 3.  **Bug Fix**: Added a check to prevent a "division by zero" panic when a preflight
+//     execution results in a total cycle count of zero.
 // =================================================================================================
 
 use risc0_zkvm::sha::Digest;
@@ -648,6 +648,15 @@ where
         order_gas_cost: U256,
         lock_expired: bool,
     ) -> Result<OrderPricingOutcome, OrderPickerErr> {
+        // BUG FIX: Add check for zero cycles before calling evaluation functions.
+        if proof_res.stats.total_cycles == 0 {
+            tracing::warn!(
+                "Skipping order {} because preflight resulted in zero cycles.",
+                order.id()
+            );
+            return Ok(Skip);
+        }
+
         if lock_expired {
             self.evaluate_lock_expired_order(order, proof_res).await
         } else {
